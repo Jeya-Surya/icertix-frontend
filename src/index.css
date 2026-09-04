@@ -1,0 +1,212 @@
+@import "tailwindcss";
+
+@theme {
+  --font-display: "Sora", sans-serif;
+  --font-body: "Plus Jakarta Sans", sans-serif;
+  --font-mono: "JetBrains Mono", monospace;
+
+  --color-navy-950: #050e20;
+  --color-navy-900: #071328;
+  --color-navy-800: #0a1f44;
+  --color-navy-700: #0e2a5c;
+  --color-navy-600: #123a7a;
+  
+  --color-icx-blue: #2ea6ff;
+  --color-icx-blue-600: #1e8fff;
+  --color-icx-blue-700: #1877e0;
+  
+  --color-icx-green: #7bd94f;
+  --color-icx-green-600: #5cbf3c;
+  
+  --color-ink: #0c1a30;
+  --color-slate-custom: #42506a;
+  --color-muted-custom: #66748c;
+  --color-line: #e5ebf4;
+  --color-bg-soft: #f4f7fc;
+  --color-bg-softer: #eef3fb;
+
+  --color-canvas: #f4f7fc;
+  --color-surface: #ffffff;
+  --color-surface-muted: #eef3fb;
+  --color-surface-subtle: #f4f7fc;
+  --color-border: #e5ebf4;
+  --color-border-dark: #cbd5e1;
+  --color-dark: #0a1f44;
+  --color-dark-surface: #071328;
+  --color-accent-blue: #2ea6ff;
+  --color-accent-blue-hover: #1e8fff;
+  --color-accent-green: #7bd94f;
+  --color-accent-gold: #d4af37;
+  --color-success: #5cbf3c;
+  --color-alert: #ef4444;
+  --color-text-main: #0c1a30;
+  --color-text-muted: #66748c;
+  --color-text-subtle: #94a3b8;
+}
+
+:root {
+  /* Signature gradients from icertix.com */
+  --grad-icx: linear-gradient(100deg, #2ea6ff 0%, #37b6ff 35%, #6fe08a 100%);
+  --grad-icx-hover: linear-gradient(100deg, #1e8fff 0%, #2ea6ff 35%, #5cbf3c 100%);
+  --grad-soft: linear-gradient(100deg, rgba(46, 166, 255, 0.12), rgba(123, 217, 79, 0.12));
+  --grad-navy: linear-gradient(140deg, #071328 0%, #0a1f44 42%, #123a7a 100%);
+  --grad-navy-deep: linear-gradient(160deg, #050e20 0%, #0a1f44 55%, #0e2a5c 100%);
+
+  --shadow-blue: 0 12px 30px rgba(46, 166, 255, 0.28);
+  --shadow-card: 0 10px 30px rgba(10, 31, 68, 0.05);
+  --shadow-card-hover: 0 20px 48px rgba(10, 31, 68, 0.1);
+  --ease-icx: cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+
+body {
+  font-family: var(--font-body), "Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  background-color: #f4f7fc;
+  color: #0c1a30;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1, h2, h3, h4, .font-sora {
+  font-family: var(--font-display), "Sora", sans-serif;
+  letter-spacing: -0.02em;
+}
+
+.font-jakarta {
+  font-family: var(--font-body), "Plus Jakarta Sans", sans-serif;
+}
+
+.font-mono-code {
+  font-family: var(--font-mono), "JetBrains Mono", monospace;
+}
+
+/* Gradient Text Effect */
+.grad-text {
+  background: var(--grad-icx);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+}
+
+/* Primary Gradient Button with smooth elevation */
+.btn-primary-gradient {
+  background: var(--grad-icx);
+  color: #051427;
+  font-weight: 700;
+  border-radius: 9999px;
+  box-shadow: var(--shadow-blue);
+  transition: transform 0.25s var(--ease-icx), box-shadow 0.25s var(--ease-icx), opacity 0.2s;
+}
+
+.btn-primary-gradient:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 16px 36px rgba(46, 166, 255, 0.38);
+}
+
+.btn-primary-gradient:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+/* Ghost Pill Button */
+.btn-pill-ghost {
+  border-radius: 9999px;
+  border: 1.5px solid #e5ebf4;
+  background: #ffffff;
+  color: #0c1a30;
+  font-weight: 600;
+  transition: all 0.25s var(--ease-icx);
+}
+
+.btn-pill-ghost:hover {
+  border-color: #2ea6ff;
+  color: #1877e0;
+  transform: translateY(-1.5px);
+  box-shadow: 0 6px 18px rgba(46, 166, 255, 0.12);
+}
+
+/* Rounded Cards */
+.icx-card {
+  background: #ffffff;
+  border: 1px solid #e5ebf4;
+  border-radius: 20px;
+  box-shadow: var(--shadow-card);
+  transition: transform 0.25s var(--ease-icx), box-shadow 0.25s var(--ease-icx);
+}
+
+.icx-card:hover {
+  box-shadow: var(--shadow-card-hover);
+}
+
+/* Rounded Table Containers */
+.icx-table-card {
+  background: #ffffff;
+  border: 1px solid #e5ebf4;
+  border-radius: 24px;
+  overflow: hidden;
+  box-shadow: var(--shadow-card);
+}
+
+/* Secondary Rounded Pill */
+.btn-pill-secondary {
+  border-radius: 9999px;
+  background: #eef3fb;
+  color: #0c1a30;
+  font-weight: 600;
+  border: 1px solid #e5ebf4;
+  transition: all 0.2s var(--ease-icx);
+}
+
+.btn-pill-secondary:hover {
+  background: #e5ebf4;
+  color: #1877e0;
+}
+
+/* Rounded Badges */
+.badge-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  border-radius: 9999px;
+  font-family: var(--font-mono), monospace;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+/* Eyebrow badge with gradient accent indicator */
+.eyebrow-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--font-display), 'Sora', sans-serif;
+  font-weight: 700;
+  font-size: 0.75rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #1877e0;
+}
+
+.eyebrow-badge::before {
+  content: "";
+  width: 18px;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--grad-icx);
+}
+
+/* Custom scrollbar matching iCertiX theme */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #f4f7fc;
+}
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
