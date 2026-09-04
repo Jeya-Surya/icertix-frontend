@@ -101,13 +101,7 @@ export const Header: React.FC<HeaderProps> = ({
         </div>
 
         {/* Center: Portal Title (Candidate & Login only) */}
-        {currentPortal === 'candidate' && (
-          <div className="flex items-center min-w-0">
-            <span className="text-sm sm:text-base font-bold font-sora text-white">
-              Candidate & Earner Portal
-            </span>
-          </div>
-        )}
+
         {currentPortal === 'login' && (
           <div className="flex items-center min-w-0">
             <span className="text-sm sm:text-base font-bold font-sora text-white">
