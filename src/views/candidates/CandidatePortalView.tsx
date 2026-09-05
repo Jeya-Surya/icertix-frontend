@@ -15,7 +15,8 @@ import {
 } from 'lucide-react';
 import { Candidate, Credential, Organisation, AuthUser } from '../../types';
 import { formatDate } from '../../utils/crypto';
-import { IcertixSeal } from '../../components/common';
+import { generateLinkedInUrl } from '../../utils/linkedinUrl';
+import { IcertixSeal, useToast } from '../../components/common';
 
 interface CandidatePortalViewProps {
   currentUser?: AuthUser | null;
@@ -35,6 +36,7 @@ export const CandidatePortalView: React.FC<CandidatePortalViewProps> = ({
   onVerifyCredential
 }) => {
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const toast = useToast();
 
   // Strictly resolve the active candidate based on authenticated session
   const currentCandidate = useMemo<Candidate>(() => {
@@ -88,14 +90,23 @@ export const CandidatePortalView: React.FC<CandidatePortalViewProps> = ({
     const url = `${window.location.origin}/verify/${cred.credentialId}`;
     navigator.clipboard.writeText(url);
     setCopiedId(cred.id);
+    toast.success(`Verification URL copied: ${cred.credentialId}`);
     setTimeout(() => setCopiedId(null), 2000);
   };
 
   const handleShareLinkedIn = (cred: Credential) => {
     const org = organisations.find(o => o.id === cred.organisationId);
     const verifyUrl = `${window.location.origin}/verify/${cred.credentialId}`;
-    const linkedInUrl = `https://www.linkedin.com/profile/add?startTask=CERTIFICATION_NAME&name=${encodeURIComponent(cred.title)}&organizationName=${encodeURIComponent(org?.name || 'iCertiX')}&issueYear=${new Date(cred.issueDate).getFullYear()}&issueMonth=${new Date(cred.issueDate).getMonth() + 1}&certUrl=${encodeURIComponent(verifyUrl)}&certId=${encodeURIComponent(cred.credentialId)}`;
+    const linkedInUrl = generateLinkedInUrl({
+      name: cred.title,
+      issuerName: org?.name || cred.issuer?.name || 'iCertiX Authorized Institution',
+      issueDate: cred.issueDate,
+      expiryDate: cred.expiryDate,
+      credentialId: cred.credentialId,
+      verificationUrl: verifyUrl
+    });
     window.open(linkedInUrl, '_blank');
+    toast.info('Opening LinkedIn "Add to Profile" certification form...');
   };
 
   const handleShareTwitter = (cred: Credential) => {

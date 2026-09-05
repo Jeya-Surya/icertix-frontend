@@ -157,11 +157,6 @@ export const PlatformSidebar: React.FC<PlatformSidebarProps> = ({
                 <div className="min-w-0 flex-1">
                   <div className="text-xs leading-none truncate">{item.label}</div>
                 </div>
-                {item.superAdminOnly && !isActive && (
-                  <span className="text-[9px] px-1.5 py-0.5 font-mono uppercase font-bold bg-[#050e20] text-[#7bd94f] border border-slate-700 rounded-full shrink-0">
-                    SA
-                  </span>
-                )}
               </button>
             );
           })}

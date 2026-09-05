@@ -85,14 +85,15 @@ export const CanvaEditor: React.FC<CanvaEditorProps> = ({
   const [historyIndex, setHistoryIndex] = useState(0);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
 
-  // Canvas View Controls - Dynamically scaled for device size
+  // Canvas View Controls - Dynamically scaled for device size and orientation
   const [zoom, setZoom] = useState(() => {
+    const isPortrait = initialSchema.page?.orientation === 'portrait';
     if (typeof window !== 'undefined') {
       const w = window.innerWidth;
-      if (w < 640) return 0.35;
-      if (w < 1024) return 0.52;
+      if (w < 640) return isPortrait ? 0.32 : 0.35;
+      if (w < 1024) return isPortrait ? 0.45 : 0.52;
     }
-    return 0.7;
+    return isPortrait ? 0.58 : 0.70;
   });
   const [showGrid, setShowGrid] = useState(false);
   const [snapToGrid, setSnapToGrid] = useState(true);
@@ -266,18 +267,117 @@ export const CanvaEditor: React.FC<CanvaEditorProps> = ({
     pushHistory(newSchema);
   };
 
-  // Update page dimensions / orientation
+  // Update page dimensions / orientation with intelligent layout reflow
   const handleUpdatePageSize = (size: PageSize, orientation: PageOrientation) => {
-    let width = 1000;
-    let height = 707;
+    let newWidth = 1000;
+    let newHeight = 707;
 
     if (size === 'A4') {
-      width = orientation === 'landscape' ? 1000 : 707;
-      height = orientation === 'landscape' ? 707 : 1000;
+      newWidth = orientation === 'landscape' ? 1000 : 707;
+      newHeight = orientation === 'landscape' ? 707 : 1000;
     } else if (size === 'Letter') {
-      width = orientation === 'landscape' ? 1056 : 816;
-      height = orientation === 'landscape' ? 816 : 1056;
+      newWidth = orientation === 'landscape' ? 1056 : 816;
+      newHeight = orientation === 'landscape' ? 816 : 1056;
     }
+
+    const oldWidth = schema.page?.width || (schema.page?.orientation === 'landscape' ? 1000 : 707);
+    const oldHeight = schema.page?.height || (schema.page?.orientation === 'landscape' ? 707 : 1000);
+
+    if (oldWidth === newWidth && oldHeight === newHeight && schema.page?.size === size && schema.page?.orientation === orientation) {
+      return;
+    }
+
+    const scaleX = newWidth / oldWidth;
+    const scaleY = newHeight / oldHeight;
+
+    const adaptedElements: StudioElement[] = schema.elements.map((el) => {
+      // 1. Full-page borders & outer frames
+      const isBorderOrFrame =
+        el.shapeType === 'frame-border' ||
+        (el.shapeType === 'rectangle' && (!el.fill || el.fill === 'transparent' || el.fill === 'none') && (el.strokeWidth || 0) > 0 && el.width >= oldWidth - 140 && el.height >= oldHeight - 140) ||
+        el.name.toLowerCase().includes('border') ||
+        el.name.toLowerCase().includes('frame');
+
+      if (isBorderOrFrame) {
+        const marginX = Math.min(Math.max(el.x, 15), 50);
+        const marginY = Math.min(Math.max(el.y, 15), 50);
+        const newMarginX = Math.round(marginX * (newWidth < oldWidth ? 0.85 : 1.15));
+        const newMarginY = Math.round(marginY * (newHeight < oldHeight ? 0.85 : 1.15));
+        return {
+          ...el,
+          x: newMarginX,
+          y: newMarginY,
+          width: Math.max(100, newWidth - 2 * newMarginX),
+          height: Math.max(100, newHeight - 2 * newMarginY)
+        };
+      }
+
+      // 2. Horizontal divider lines & accent bar shapes
+      const isHorizontalLine =
+        el.type === 'line' ||
+        (el.type === 'shape' && el.height <= 25 && el.width >= oldWidth * 0.4);
+
+      if (isHorizontalLine) {
+        const wasCentered = Math.abs((el.x + el.width / 2) - (oldWidth / 2)) < 40;
+        const newW = Math.min(newWidth - 40, Math.max(80, Math.round(el.width * scaleX)));
+        const newX = wasCentered ? Math.round((newWidth - newW) / 2) : Math.max(10, Math.min(newWidth - newW - 10, Math.round(el.x * scaleX)));
+        const newY = Math.max(10, Math.min(newHeight - el.height - 10, Math.round(el.y * scaleY)));
+        return {
+          ...el,
+          x: newX,
+          y: newY,
+          width: newW,
+          height: el.height
+        };
+      }
+
+      // 3. Text and Dynamic Variable Fields (titles, names, descriptions, metadata)
+      const isTextOrDynamic = el.type === 'text' || el.type === 'dynamic-field';
+      if (isTextOrDynamic) {
+        const wasCentered = Math.abs((el.x + el.width / 2) - (oldWidth / 2)) < 50 || el.textAlign === 'center';
+        const newW = Math.min(newWidth - 30, Math.max(100, Math.round(el.width * scaleX)));
+        const newX = wasCentered ? Math.round((newWidth - newW) / 2) : Math.max(10, Math.min(newWidth - newW - 10, Math.round(el.x * scaleX)));
+        const newY = Math.max(10, Math.min(newHeight - el.height - 10, Math.round(el.y * scaleY)));
+        return {
+          ...el,
+          x: newX,
+          y: newY,
+          width: newW,
+          height: el.height
+        };
+      }
+
+      // 4. Fixed aspect & special elements (seals, QR code, signatures, images, shapes)
+      let newW = el.width;
+      let newH = el.height;
+      const isFixedAspect = el.type === 'seal' || el.type === 'qr' || el.type === 'signature' || el.type === 'image';
+
+      if (!isFixedAspect) {
+        newW = Math.min(newWidth - 20, Math.max(15, Math.round(el.width * scaleX)));
+        newH = Math.min(newHeight - 20, Math.max(15, Math.round(el.height * scaleY)));
+      } else {
+        if (newW > newWidth * 0.35) {
+          const ratio = (newWidth * 0.35) / newW;
+          newW = Math.round(newW * ratio);
+          newH = Math.round(newH * ratio);
+        }
+      }
+
+      // Centered seals / icons
+      const wasCentered = Math.abs((el.x + el.width / 2) - (oldWidth / 2)) < 30;
+      const newX = wasCentered
+        ? Math.round((newWidth - newW) / 2)
+        : Math.max(10, Math.min(newWidth - newW - 10, Math.round(el.x * scaleX)));
+      const newY = Math.max(10, Math.min(newHeight - newH - 10, Math.round(el.y * scaleY)));
+
+      return {
+        ...el,
+        x: newX,
+        y: newY,
+        width: newW,
+        height: newH
+      };
+    });
 
     const newSchema = {
       ...schema,
@@ -285,12 +385,22 @@ export const CanvaEditor: React.FC<CanvaEditorProps> = ({
         ...schema.page,
         size,
         orientation,
-        width,
-        height
-      }
+        width: newWidth,
+        height: newHeight
+      },
+      elements: adaptedElements
     };
+
     setSchema(newSchema);
     pushHistory(newSchema);
+
+    // Auto-fit zoom for new orientation
+    const w = typeof window !== 'undefined' ? window.innerWidth : 1200;
+    if (orientation === 'portrait') {
+      setZoom(w < 640 ? 0.32 : w < 1024 ? 0.45 : 0.58);
+    } else {
+      setZoom(w < 640 ? 0.35 : w < 1024 ? 0.52 : 0.70);
+    }
   };
 
   // Apply prebuilt template preset
@@ -484,11 +594,11 @@ export const CanvaEditor: React.FC<CanvaEditorProps> = ({
     const w = typeof window !== 'undefined' ? window.innerWidth : 1200;
     const isLandscape = schema.page.orientation === 'landscape';
     if (w < 640) {
-      setZoom(isLandscape ? 0.35 : 0.42);
+      setZoom(isLandscape ? 0.35 : 0.32);
     } else if (w < 1024) {
-      setZoom(isLandscape ? 0.52 : 0.6);
+      setZoom(isLandscape ? 0.52 : 0.45);
     } else {
-      setZoom(isLandscape ? 0.7 : 0.65);
+      setZoom(isLandscape ? 0.70 : 0.58);
     }
   };
 

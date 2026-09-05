@@ -388,12 +388,12 @@ export const CanvasStage: React.FC<CanvasStageProps> = ({
         ref={containerRef}
         onClick={(e) => {
           // Only deselect if clicked directly on empty stage backdrop
-          if (e.target === containerRef.current) {
+          if (e.target === containerRef.current || (e.target as HTMLElement)?.id === 'canvas-stage-wrapper') {
             onSelectElement(null);
             setEditingTextId(null);
           }
         }}
-        className="flex-1 overflow-auto flex items-center justify-center p-8 sm:p-14 relative min-h-[450px]"
+        className="flex-1 overflow-auto p-4 sm:p-8 md:p-12 relative min-h-[450px]"
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
         onDragOver={(e) => {
@@ -403,26 +403,27 @@ export const CanvasStage: React.FC<CanvasStageProps> = ({
         onDragLeave={() => setIsDragOverCanvas(false)}
         onDrop={handleDrop}
       >
-        {/* The Printable Vector Parchment / Canvas */}
-        <div
-          ref={canvasRef}
-          onClick={(e) => {
-            // If clicked on canvas background itself, clear selection
-            if (e.target === canvasRef.current || (e.target as HTMLElement)?.id === 'canvas-background-layer') {
-              onSelectElement(null);
-              setEditingTextId(null);
-            }
-          }}
-          className={`relative bg-white shadow-2xl transition-all duration-75 ease-out shrink-0 ${
-            isDragOverCanvas ? 'ring-4 ring-[#0284C7] ring-offset-4' : 'ring-1 ring-slate-400/30'
-          }`}
-          style={{
-            width: `${width * zoom}px`,
-            height: `${height * zoom}px`,
-            minWidth: `${width * zoom}px`,
-            minHeight: `${height * zoom}px`
-          }}
-        >
+        <div id="canvas-stage-wrapper" className="min-w-full min-h-full flex items-center justify-center m-auto py-4">
+          {/* The Printable Vector Parchment / Canvas */}
+          <div
+            ref={canvasRef}
+            onClick={(e) => {
+              // If clicked on canvas background itself, clear selection
+              if (e.target === canvasRef.current || (e.target as HTMLElement)?.id === 'canvas-background-layer') {
+                onSelectElement(null);
+                setEditingTextId(null);
+              }
+            }}
+            className={`relative bg-white shadow-2xl transition-all duration-75 ease-out shrink-0 ${
+              isDragOverCanvas ? 'ring-4 ring-[#0284C7] ring-offset-4' : 'ring-1 ring-slate-400/30'
+            }`}
+            style={{
+              width: `${width * zoom}px`,
+              height: `${height * zoom}px`,
+              minWidth: `${width * zoom}px`,
+              minHeight: `${height * zoom}px`
+            }}
+          >
           {/* Inner Scaled Box (1:1 coordinate space) */}
           <div
             id="canvas-background-layer"
@@ -920,6 +921,7 @@ export const CanvasStage: React.FC<CanvasStageProps> = ({
               );
             })}
           </div>
+        </div>
         </div>
       </div>
 

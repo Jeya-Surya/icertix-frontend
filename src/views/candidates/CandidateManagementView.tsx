@@ -13,10 +13,14 @@ import {
   Download,
   X,
   UserCheck,
-  FileText
+  FileText,
+  ShieldCheck,
+  Loader2
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { Organisation, Candidate } from '../../types';
+import { useToast } from '../../components/common/ToastContext';
+import { api } from '../../services/apiClient';
 
 interface CandidateManagementViewProps {
   currentOrg: Organisation;
@@ -35,6 +39,8 @@ export const CandidateManagementView: React.FC<CandidateManagementViewProps> = (
   onDeleteCandidate,
   onIssueForCandidate
 }) => {
+  const toast = useToast();
+  const [exportingCandidateId, setExportingCandidateId] = useState<string | null>(null);
   const orgCandidates = candidates.filter(c => c.organisationId === currentOrg.id);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
@@ -71,6 +77,29 @@ export const CandidateManagementView: React.FC<CandidateManagementViewProps> = (
     const matchesStatus = statusFilter === 'ALL' || c.status === statusFilter;
     return matchesSearch && matchesStatus;
   });
+
+  // GDPR / FERPA Subject Access Request (SAR) Bundle Exporter
+  const handleExportGdpr = async (candidateId: string, candidateName: string) => {
+    try {
+      setExportingCandidateId(candidateId);
+      const sarBundle = await api.exportCandidateGdpr(candidateId);
+      const jsonStr = JSON.stringify(sarBundle, null, 2);
+      const blob = new Blob([jsonStr], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `gdpr-sar-bundle-${candidateName.toLowerCase().replace(/[^a-z0-9]/g, '_')}-${candidateId}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      toast.success(`GDPR Subject Access Request bundle generated for ${candidateName}`, 'SAR Bundle Exported');
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to export candidate GDPR data bundle', 'Export Failed');
+    } finally {
+      setExportingCandidateId(null);
+    }
+  };
 
   // 1. Generate & Download Example Excel (.xlsx) Template
   const handleDownloadExcelTemplate = () => {
@@ -378,6 +407,18 @@ Priya Patel,priya.patel@ai-innovate.in,CAND-${currentOrg.code}-2026-7734,Artific
                 </div>
                 <div className="flex items-center gap-1.5 shrink-0">
                   <button
+                    onClick={() => handleExportGdpr(cand.id, cand.name)}
+                    disabled={exportingCandidateId === cand.id}
+                    className="p-1.5 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors cursor-pointer inline-flex items-center"
+                    title="Export GDPR / FERPA SAR Data Bundle"
+                  >
+                    {exportingCandidateId === cand.id ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin text-indigo-600" />
+                    ) : (
+                      <ShieldCheck className="w-3.5 h-3.5" />
+                    )}
+                  </button>
+                  <button
                     onClick={() => onIssueForCandidate(cand)}
                     className="btn-primary-gradient px-3 py-1 text-[11px] font-bold shadow-xs cursor-pointer inline-flex items-center gap-1 text-[#051427]"
                     title="Issue verified certificate for this candidate"
@@ -437,6 +478,18 @@ Priya Patel,priya.patel@ai-innovate.in,CAND-${currentOrg.code}-2026-7734,Artific
                       </span>
                     </td>
                     <td className="p-4 pr-6 text-right space-x-2">
+                      <button
+                        onClick={() => handleExportGdpr(cand.id, cand.name)}
+                        disabled={exportingCandidateId === cand.id}
+                        className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors cursor-pointer inline-flex items-center"
+                        title="Export GDPR / FERPA SAR Data Bundle"
+                      >
+                        {exportingCandidateId === cand.id ? (
+                          <Loader2 className="w-3.5 h-3.5 animate-spin text-indigo-600" />
+                        ) : (
+                          <ShieldCheck className="w-3.5 h-3.5" />
+                        )}
+                      </button>
                       <button
                         onClick={() => onIssueForCandidate(cand)}
                         className="btn-pill-primary px-3 py-1 text-[11px] font-bold shadow-xs cursor-pointer inline-flex items-center gap-1"

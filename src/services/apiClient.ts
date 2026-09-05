@@ -585,6 +585,29 @@ class ApiClient {
     return json.data;
   }
 
+  async getW3cVerifiableCredential(credentialId: string): Promise<any> {
+    const cleanId = encodeURIComponent(credentialId.trim());
+    const response = await fetch(`${BASE_URL}/api/public/verify/${cleanId}/vc`);
+    if (!response.ok) {
+      throw new Error('Failed to fetch W3C Verifiable Credential');
+    }
+    return response.json();
+  }
+
+  async getOpenBadge(credentialId: string): Promise<any> {
+    const cleanId = encodeURIComponent(credentialId.trim());
+    const response = await fetch(`${BASE_URL}/api/public/verify/${cleanId}/badge.json`);
+    if (!response.ok) {
+      throw new Error('Failed to fetch Open Badges 3.0 data');
+    }
+    return response.json();
+  }
+
+  getSocialBadgeSvgUrl(credentialId: string): string {
+    const cleanId = encodeURIComponent(credentialId.trim());
+    return `${BASE_URL}/api/public/verify/${cleanId}/badge-svg`;
+  }
+
   async getEmailLogs(page = 1, limit = 50, search?: string): Promise<EmailLog[]> {
     const params = new URLSearchParams({ page: String(page), limit: String(limit) });
     if (search) params.set('search', search);
@@ -612,6 +635,58 @@ class ApiClient {
 
   async getSubscriptionUsage(): Promise<any> {
     return this.request<any>('/api/subscriptions/usage');
+  }
+
+  async getJobProgress(jobId: string): Promise<any> {
+    const res = await this.request<any>(`/api/jobs/${encodeURIComponent(jobId)}`);
+    return res;
+  }
+
+  async cancelJob(jobId: string): Promise<any> {
+    return this.request<any>(`/api/jobs/${encodeURIComponent(jobId)}/cancel`, {
+      method: 'POST'
+    });
+  }
+
+  async getBatchJobs(): Promise<any[]> {
+    return this.request<any[]>('/api/jobs');
+  }
+
+  async getWebhooks(): Promise<any[]> {
+    return this.request<any[]>('/api/webhooks');
+  }
+
+  async createWebhook(data: { url: string; description?: string; events: string[] }): Promise<any> {
+    return this.request<any>('/api/webhooks', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async testWebhook(id: string): Promise<any> {
+    return this.request<any>(`/api/webhooks/${encodeURIComponent(id)}/test`, {
+      method: 'POST',
+    });
+  }
+
+  async deleteWebhook(id: string): Promise<any> {
+    return this.request<any>(`/api/webhooks/${encodeURIComponent(id)}`, {
+      method: 'DELETE',
+    });
+  }
+
+  async getWebhookLogs(): Promise<any[]> {
+    return this.request<any[]>('/api/webhooks/logs');
+  }
+
+  async exportCandidateGdpr(candidateId: string): Promise<any> {
+    return this.request<any>(`/api/candidates/${encodeURIComponent(candidateId)}/gdpr-export`);
+  }
+
+  async anonymizeCandidate(candidateId: string): Promise<any> {
+    return this.request<any>(`/api/candidates/${encodeURIComponent(candidateId)}/anonymize`, {
+      method: 'POST',
+    });
   }
 }
 

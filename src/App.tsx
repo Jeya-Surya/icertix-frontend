@@ -28,7 +28,10 @@ import {
   PlatformSidebar, 
   CertificateModal, 
   RevocationModal,
-  LogoutConfirmModal 
+  LogoutConfirmModal,
+  WebhooksManagementModal,
+  ErrorBoundary,
+  ToastProvider
 } from './components';
 import { 
   DashboardView, 
@@ -147,11 +150,16 @@ export default function App() {
     return INITIAL_AUDIT_LOGS;
   });
 
-  // Navigation Portals & Tabs (Start at login if not authenticated)
+  // Navigation Portals & Tabs (Derive correct portal from role upon initialization)
   const [currentPortal, setCurrentPortal] = useState<UserPortal>(() => {
     try {
       const saved = localStorage.getItem('icertix_current_user');
-      if (saved) return 'org';
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed?.role === 'CANDIDATE') return 'candidate';
+        if (parsed?.role === 'SUPER_ADMIN') return 'platform-admin';
+        if (parsed?.role === 'ORG_ADMIN') return 'org';
+      }
     } catch {}
     return 'login';
   });
@@ -168,6 +176,7 @@ export default function App() {
   const [activeDesignerTemplateId, setActiveDesignerTemplateId] = useState<string | null>(null);
   const [isDesignerCreateBlank, setIsDesignerCreateBlank] = useState<boolean>(false);
   const [verifierTargetId, setVerifierTargetId] = useState<string | null>(null);
+  const [showWebhooksModal, setShowWebhooksModal] = useState<boolean>(false);
 
   // Toast Notification System
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -179,54 +188,101 @@ export default function App() {
 
   const [loginViewMode, setLoginViewMode] = useState<'login' | 'register_org' | 'claim_candidate'>('login');
 
-  // URL Route Synchronization
+  // URL Route Synchronization with Strict Role-Based Access Control (RBAC)
   useEffect(() => {
     const path = location.pathname.toLowerCase();
 
+    // 1. Public Verification & Auth routes
     if (path === '/login' || path === '/signin') {
       setCurrentPortal('login');
       setLoginViewMode('login');
-    } else if (path === '/register' || path === '/signup' || path === '/onboarding') {
+      return;
+    }
+    if (path === '/register' || path === '/signup' || path === '/onboarding') {
       setCurrentPortal('login');
       setLoginViewMode('register_org');
-    } else if (path === '/claim' || path === '/claim-account' || path === '/register/student') {
+      return;
+    }
+    if (path === '/claim' || path === '/claim-account' || path === '/register/student') {
       setCurrentPortal('login');
       setLoginViewMode('claim_candidate');
-    } else if (path.startsWith('/verify')) {
+      return;
+    }
+    if (path.startsWith('/verify')) {
       setCurrentPortal('verify');
       const segments = location.pathname.split('/');
       if (segments.length >= 3 && segments[2]) {
         setVerifierTargetId(segments[2]);
       }
-    } else if (path.startsWith('/candidate')) {
-      setCurrentPortal('candidate');
-    } else if (path.startsWith('/platform')) {
-      setCurrentPortal('platform-admin');
-      const tabSegment = path.replace(/^\/platform\/?/, '');
-      if (tabSegment) {
-        setPlatformTab(`platform-${tabSegment}` as any);
+      return;
+    }
+
+    // 2. Unauthenticated user trying to access protected areas
+    if (!currentUser) {
+      setCurrentPortal('login');
+      setLoginViewMode('login');
+      navigate('/login', { replace: true });
+      return;
+    }
+
+    // 3. Candidate role protection — Strictly block Organization and Platform administration
+    if (currentUser.role === 'CANDIDATE') {
+      if (path.startsWith('/org') || path.startsWith('/platform') || path === '/' || path === '') {
+        setCurrentPortal('candidate');
+        navigate('/candidate/wallet', { replace: true });
+        return;
       }
-    } else if (path.startsWith('/org')) {
-      setCurrentPortal('org');
-      const tabSegment = path.replace(/^\/org\/?/, '');
-      const validTabs: NavTab[] = ['dashboard', 'templates', 'designer', 'candidates', 'generation', 'registry', 'emails', 'audit', 'subscription'];
-      if (validTabs.includes(tabSegment as NavTab)) {
-        setCurrentTab(tabSegment as NavTab);
-      }
-    } else if (path === '/' || path === '') {
-      if (currentUser) {
-        if (currentUser.role === 'SUPER_ADMIN') {
-          navigate('/platform/dashboard', { replace: true });
-        } else if (currentUser.role === 'CANDIDATE') {
-          navigate('/candidate/wallet', { replace: true });
-        } else {
-          navigate('/org/dashboard', { replace: true });
-        }
-      } else {
-        navigate('/login', { replace: true });
+      if (path.startsWith('/candidate')) {
+        setCurrentPortal('candidate');
+        return;
       }
     }
-  }, [location.pathname]);
+
+    // 4. Organization Admin role protection
+    if (currentUser.role === 'ORG_ADMIN') {
+      if (path.startsWith('/platform') || path.startsWith('/candidate') || path === '/' || path === '') {
+        setCurrentPortal('org');
+        setCurrentTab('dashboard');
+        navigate('/org/dashboard', { replace: true });
+        return;
+      }
+      if (path.startsWith('/org')) {
+        setCurrentPortal('org');
+        const tabSegment = path.replace(/^\/org\/?/, '');
+        const validTabs: NavTab[] = ['dashboard', 'templates', 'designer', 'candidates', 'generation', 'registry', 'emails', 'audit', 'subscription'];
+        if (validTabs.includes(tabSegment as NavTab)) {
+          setCurrentTab(tabSegment as NavTab);
+        }
+        return;
+      }
+    }
+
+    // 5. Super Admin / Platform Admin role
+    if (currentUser.role === 'SUPER_ADMIN') {
+      if (path.startsWith('/platform')) {
+        setCurrentPortal('platform-admin');
+        const tabSegment = path.replace(/^\/platform\/?/, '');
+        if (tabSegment) {
+          setPlatformTab(`platform-${tabSegment}` as any);
+        }
+        return;
+      }
+      if (path.startsWith('/org')) {
+        setCurrentPortal('org');
+        const tabSegment = path.replace(/^\/org\/?/, '');
+        const validTabs: NavTab[] = ['dashboard', 'templates', 'designer', 'candidates', 'generation', 'registry', 'emails', 'audit', 'subscription'];
+        if (validTabs.includes(tabSegment as NavTab)) {
+          setCurrentTab(tabSegment as NavTab);
+        }
+        return;
+      }
+      if (path === '/' || path === '') {
+        setCurrentPortal('platform-admin');
+        navigate('/platform/dashboard', { replace: true });
+        return;
+      }
+    }
+  }, [location.pathname, currentUser]);
 
   // Live Backend Data Synchronizer
   const loadLiveBackendData = async (targetOrgId?: string) => {
@@ -860,23 +916,38 @@ export default function App() {
 
   const orgCredentials = credentials.filter(c => c.organisationId === currentOrg.id);
   const orgCandidates = candidates.filter(c => c.organisationId === currentOrg.id);
+  const orgTemplates = templates.filter(t => t.organisationId === currentOrg.id);
   const isRegisterRoute = location.pathname.toLowerCase().includes('/register');
 
   return (
-    <div id="icertix-saas-app" className="flex flex-col min-h-screen bg-[#F8FAFC] text-[#0A2540] selection:bg-[#0284C7]/20 selection:text-[#0A2540]">
-      {/* Toast Notification */}
-      {toastMessage && (
-        <div className="fixed bottom-5 right-5 z-50 bg-[#0A2540] text-white px-4 py-2.5 shadow-xl border border-[#0F3559] text-xs font-mono font-bold flex items-center gap-2 animate-fadeIn">
-          <span className="w-2 h-2 rounded-full bg-emerald-400" />
-          <span>{toastMessage}</span>
-        </div>
-      )}
+    <ToastProvider>
+      <div id="icertix-saas-app" className="flex flex-col min-h-screen bg-[#F8FAFC] text-[#0A2540] selection:bg-[#0284C7]/20 selection:text-[#0A2540]">
+        {/* Toast Notification */}
+        {toastMessage && (
+          <div className="fixed bottom-5 right-5 z-50 bg-[#0A2540] text-white px-4 py-2.5 shadow-xl border border-[#0F3559] text-xs font-mono font-bold flex items-center gap-2 animate-fadeIn">
+            <span className="w-2 h-2 rounded-full bg-emerald-400" />
+            <span>{toastMessage}</span>
+          </div>
+        )}
 
       {/* Global Header (Rendered for Authenticated Dashboards & Public Verifier) */}
       {currentPortal !== 'login' && (
         <Header
           currentPortal={currentPortal}
           onChangePortal={(p) => {
+            if (currentUser?.role === 'CANDIDATE') {
+              if (p === 'verify') {
+                setCurrentPortal('verify');
+                navigate('/verify');
+              } else {
+                setCurrentPortal('candidate');
+                navigate('/candidate/wallet');
+              }
+              return;
+            }
+            if (p === 'platform-admin' && currentUser?.role !== 'SUPER_ADMIN') {
+              return;
+            }
             setCurrentPortal(p);
             if (p === 'org') {
               setCurrentTab('dashboard');
@@ -894,6 +965,7 @@ export default function App() {
           organisations={organisations}
           currentOrg={currentOrg}
           onChangeOrg={(org) => {
+            if (currentUser?.role === 'CANDIDATE') return;
             setCurrentOrg(org);
             api.setOrganisationId(org.id);
             loadLiveBackendData(org.id);
@@ -901,6 +973,7 @@ export default function App() {
           searchQuery={searchQuery}
           onSearchChange={setSearchQuery}
           onQuickIssue={() => {
+            if (currentUser?.role === 'CANDIDATE') return;
             setCurrentPortal('org');
             setCurrentTab('generation');
             navigate('/org/generation');
@@ -949,8 +1022,8 @@ export default function App() {
           </main>
         )}
 
-        {/* Platform Administration Portal — SUPER_ADMIN & PLATFORM_ADMIN */}
-        {currentPortal === 'platform-admin' && (
+        {/* Platform Administration Portal — SUPER_ADMIN only */}
+        {currentPortal === 'platform-admin' && currentUser?.role === 'SUPER_ADMIN' && (
           <>
             {/* Desktop Sidebar */}
             <div className="hidden md:block w-64 shrink-0 md:sticky md:top-16 md:h-[calc(100vh-4rem)] md:self-start md:overflow-y-auto z-20">
@@ -986,19 +1059,21 @@ export default function App() {
               </div>
             </div>
 
-            <PlatformAdminView
-              currentTab={platformTab}
-              currentUser={currentUser}
-              onNavigateTab={(tab) => {
-                setPlatformTab(tab);
-                navigate('/platform/' + tab.replace('platform-', ''));
-              }}
-            />
+            <ErrorBoundary fallbackTitle="Platform Admin Error">
+              <PlatformAdminView
+                currentTab={platformTab}
+                currentUser={currentUser}
+                onNavigateTab={(tab) => {
+                  setPlatformTab(tab);
+                  navigate('/platform/' + tab.replace('platform-', ''));
+                }}
+              />
+            </ErrorBoundary>
           </>
         )}
 
-        {/* Organisation Portal Mode: Shows Sidebar + Tab views */}
-        {currentPortal === 'org' && (
+        {/* Organisation Portal Mode: Shows Sidebar + Tab views (Strictly excluded for CANDIDATE) */}
+        {currentPortal === 'org' && currentUser?.role !== 'CANDIDATE' && (
           <>
             {/* Mobile Drawer (Only visible when toggled on mobile) */}
             <div className={`fixed inset-0 z-50 md:hidden ${mobileMenuOpen ? 'block' : 'hidden'}`}>
@@ -1026,6 +1101,10 @@ export default function App() {
                   }}
                   onLogout={handleRequestLogout}
                   onCloseMobileMenu={() => setMobileMenuOpen(false)}
+                  onOpenWebhooks={() => {
+                    setShowWebhooksModal(true);
+                    setMobileMenuOpen(false);
+                  }}
                 />
               </div>
             </div>
@@ -1048,6 +1127,7 @@ export default function App() {
                   navigate('/login');
                 }}
                 onLogout={handleRequestLogout}
+                onOpenWebhooks={() => setShowWebhooksModal(true)}
               />
             </div>
 
@@ -1057,136 +1137,138 @@ export default function App() {
                 ? 'p-0 sm:p-1.5 lg:p-3 max-w-full' 
                 : 'p-3 sm:p-6 lg:p-8 max-w-[1440px]'
             }`}>
-              {currentTab === 'dashboard' && (
-                <DashboardView
-                  currentOrg={currentOrg}
-                  credentials={credentials}
-                  templates={templates}
-                  candidateCount={orgCandidates.length}
-                  onNavigateTab={(tab) => {
-                    setCurrentTab(tab);
-                    navigate('/org/' + tab);
-                  }}
-                  onViewCertificate={setInspectingCredential}
-                  onVerifyCredential={handleVerifyCredential}
-                  onEditTemplateInDesigner={(templateId) => {
-                    setActiveDesignerTemplateId(templateId);
-                    setIsDesignerCreateBlank(false);
-                    setCurrentTab('designer');
-                    navigate('/org/designer');
-                  }}
-                  onUseTemplateForIssue={(templateId) => {
-                    setPreselectedTemplateForIssue(templateId);
-                    setCurrentTab('generation');
-                    navigate('/org/generation');
-                  }}
-                />
-              )}
-
-              {currentTab === 'templates' && (
-                <MyTemplatesView
-                  currentOrg={currentOrg}
-                  templates={templates}
-                  credentials={credentials}
-                  candidates={candidates}
-                  onNavigateToDesigner={(templateId, isNew) => {
-                    if (templateId) {
+              <ErrorBoundary fallbackTitle="Workspace View Error">
+                {currentTab === 'dashboard' && (
+                  <DashboardView
+                    currentOrg={currentOrg}
+                    credentials={orgCredentials}
+                    templates={orgTemplates}
+                    candidateCount={orgCandidates.length}
+                    onNavigateTab={(tab) => {
+                      setCurrentTab(tab);
+                      navigate('/org/' + tab);
+                    }}
+                    onViewCertificate={setInspectingCredential}
+                    onVerifyCredential={handleVerifyCredential}
+                    onEditTemplateInDesigner={(templateId) => {
                       setActiveDesignerTemplateId(templateId);
                       setIsDesignerCreateBlank(false);
+                      setCurrentTab('designer');
+                      navigate('/org/designer');
+                    }}
+                    onUseTemplateForIssue={(templateId) => {
                       setPreselectedTemplateForIssue(templateId);
-                    } else if (isNew) {
-                      setActiveDesignerTemplateId(null);
-                      setIsDesignerCreateBlank(true);
-                    } else {
+                      setCurrentTab('generation');
+                      navigate('/org/generation');
+                    }}
+                  />
+                )}
+
+                {currentTab === 'templates' && (
+                  <MyTemplatesView
+                    currentOrg={currentOrg}
+                    templates={orgTemplates}
+                    credentials={orgCredentials}
+                    candidates={orgCandidates}
+                    onNavigateToDesigner={(templateId, isNew) => {
+                      if (templateId) {
+                        setActiveDesignerTemplateId(templateId);
+                        setIsDesignerCreateBlank(false);
+                        setPreselectedTemplateForIssue(templateId);
+                      } else if (isNew) {
+                        setActiveDesignerTemplateId(null);
+                        setIsDesignerCreateBlank(true);
+                      } else {
+                        setActiveDesignerTemplateId(null);
+                        setIsDesignerCreateBlank(false);
+                      }
+                      setCurrentTab('designer');
+                      navigate('/org/designer');
+                    }}
+                    onViewCertificate={setInspectingCredential}
+                    onCredentialCreated={handleCredentialCreated}
+                    onDeleteTemplate={handleDeleteTemplate}
+                    onDuplicateTemplate={handleDuplicateTemplate}
+                  />
+                )}
+
+                {currentTab === 'designer' && (
+                  <TemplateStudioView
+                    currentOrg={currentOrg}
+                    templates={orgTemplates}
+                    currentUser={currentUser}
+                    editingTemplateId={activeDesignerTemplateId}
+                    isCreatingNew={isDesignerCreateBlank}
+                    onClearEditingTemplate={() => {
                       setActiveDesignerTemplateId(null);
                       setIsDesignerCreateBlank(false);
-                    }
-                    setCurrentTab('designer');
-                    navigate('/org/designer');
-                  }}
-                  onViewCertificate={setInspectingCredential}
-                  onCredentialCreated={handleCredentialCreated}
-                  onDeleteTemplate={handleDeleteTemplate}
-                  onDuplicateTemplate={handleDuplicateTemplate}
-                />
-              )}
+                    }}
+                    onSaveTemplate={handleSaveTemplate}
+                    onUseTemplateForIssuance={handleUseTemplateForIssuance}
+                  />
+                )}
 
-              {currentTab === 'designer' && (
-                <TemplateStudioView
-                  currentOrg={currentOrg}
-                  templates={templates}
-                  currentUser={currentUser}
-                  editingTemplateId={activeDesignerTemplateId}
-                  isCreatingNew={isDesignerCreateBlank}
-                  onClearEditingTemplate={() => {
-                    setActiveDesignerTemplateId(null);
-                    setIsDesignerCreateBlank(false);
-                  }}
-                  onSaveTemplate={handleSaveTemplate}
-                  onUseTemplateForIssuance={handleUseTemplateForIssuance}
-                />
-              )}
+                {currentTab === 'candidates' && (
+                  <CandidateManagementView
+                    currentOrg={currentOrg}
+                    candidates={candidates}
+                    onAddCandidate={handleAddCandidate}
+                    onImportBulkCandidates={handleImportBulkCandidates}
+                    onDeleteCandidate={handleDeleteCandidate}
+                    onIssueForCandidate={handleIssueForCandidate}
+                  />
+                )}
 
-              {currentTab === 'candidates' && (
-                <CandidateManagementView
-                  currentOrg={currentOrg}
-                  candidates={candidates}
-                  onAddCandidate={handleAddCandidate}
-                  onImportBulkCandidates={handleImportBulkCandidates}
-                  onDeleteCandidate={handleDeleteCandidate}
-                  onIssueForCandidate={handleIssueForCandidate}
-                />
-              )}
+                {currentTab === 'generation' && (
+                  <CertificateGenerationView
+                    currentOrg={currentOrg}
+                    candidates={candidates}
+                    templates={templates}
+                    preselectedCandidate={preselectedCandidateForIssue}
+                    preselectedTemplateId={preselectedTemplateForIssue}
+                    onCredentialCreated={handleCredentialCreated}
+                    onViewCertificate={setInspectingCredential}
+                  />
+                )}
 
-              {currentTab === 'generation' && (
-                <CertificateGenerationView
-                  currentOrg={currentOrg}
-                  candidates={candidates}
-                  templates={templates}
-                  preselectedCandidate={preselectedCandidateForIssue}
-                  preselectedTemplateId={preselectedTemplateForIssue}
-                  onCredentialCreated={handleCredentialCreated}
-                  onViewCertificate={setInspectingCredential}
-                />
-              )}
+                {currentTab === 'registry' && (
+                  <CredentialRegistryView
+                    currentOrg={currentOrg}
+                    credentials={credentials}
+                    onViewCertificate={setInspectingCredential}
+                    onVerifyCredential={handleVerifyCredential}
+                    onRevokeCredential={setRevokingCredential}
+                    onResendEmail={handleResendEmail}
+                  />
+                )}
 
-              {currentTab === 'registry' && (
-                <CredentialRegistryView
-                  currentOrg={currentOrg}
-                  credentials={credentials}
-                  onViewCertificate={setInspectingCredential}
-                  onVerifyCredential={handleVerifyCredential}
-                  onRevokeCredential={setRevokingCredential}
-                  onResendEmail={handleResendEmail}
-                />
-              )}
+                {currentTab === 'emails' && (
+                  <EmailLogsView
+                    currentOrg={currentOrg}
+                    emailLogs={emailLogs}
+                    credentials={credentials}
+                    onResendEmail={handleResendEmail}
+                  />
+                )}
 
-              {currentTab === 'emails' && (
-                <EmailLogsView
-                  currentOrg={currentOrg}
-                  emailLogs={emailLogs}
-                  credentials={credentials}
-                  onResendEmail={handleResendEmail}
-                />
-              )}
+                {currentTab === 'audit' && (
+                  <AuditTrailView
+                    currentOrg={currentOrg}
+                    auditLogs={auditLogs}
+                  />
+                )}
 
-              {currentTab === 'audit' && (
-                <AuditTrailView
-                  currentOrg={currentOrg}
-                  auditLogs={auditLogs}
-                />
-              )}
-
-              {currentTab === 'subscription' && (
-                <SubscriptionView
-                  currentOrg={currentOrg}
-                  onPlanUpdated={(updatedOrg) => {
-                    setCurrentOrg(updatedOrg);
-                    setOrganisations(prev => prev.map(o => o.id === updatedOrg.id ? updatedOrg : o));
-                    showToast(`Active plan updated to ${updatedOrg.plan} (${updatedOrg.certificateQuota.total} certificate limit).`);
-                  }}
-                />
-              )}
+                {currentTab === 'subscription' && (
+                  <SubscriptionView
+                    currentOrg={currentOrg}
+                    onPlanUpdated={(updatedOrg) => {
+                      setCurrentOrg(updatedOrg);
+                      setOrganisations(prev => prev.map(o => o.id === updatedOrg.id ? updatedOrg : o));
+                      showToast(`Active plan updated to ${updatedOrg.plan} (${updatedOrg.certificateQuota.total} certificate limit).`);
+                    }}
+                  />
+                )}
+              </ErrorBoundary>
             </main>
           </>
         )}
@@ -1194,26 +1276,30 @@ export default function App() {
         {/* Candidate Portal Mode: Standalone Full-Width View */}
         {currentPortal === 'candidate' && (
           <main className="flex-1 p-4 sm:p-6 lg:p-10 max-w-6xl w-full mx-auto">
-            <CandidatePortalView
-              currentUser={currentUser}
-              candidates={candidates}
-              credentials={credentials}
-              organisations={organisations}
-              onViewCertificate={setInspectingCredential}
-              onVerifyCredential={handleVerifyCredential}
-            />
+            <ErrorBoundary fallbackTitle="Candidate Portal Error">
+              <CandidatePortalView
+                currentUser={currentUser}
+                candidates={candidates}
+                credentials={credentials}
+                organisations={organisations}
+                onViewCertificate={setInspectingCredential}
+                onVerifyCredential={handleVerifyCredential}
+              />
+            </ErrorBoundary>
           </main>
         )}
 
         {/* Public Verifier Mode: Standalone Full-Width Verification Screen */}
         {currentPortal === 'verify' && (
           <main className="flex-1 p-4 sm:p-6 lg:p-10 max-w-5xl w-full mx-auto">
-            <PublicVerificationView
-              credentials={credentials}
-              organisations={organisations}
-              initialCredentialId={verifierTargetId}
-              onViewCertificate={setInspectingCredential}
-            />
+            <ErrorBoundary fallbackTitle="Public Verification Error">
+              <PublicVerificationView
+                credentials={credentials}
+                organisations={organisations}
+                initialCredentialId={verifierTargetId}
+                onViewCertificate={setInspectingCredential}
+              />
+            </ErrorBoundary>
           </main>
         )}
       </div>
@@ -1244,6 +1330,14 @@ export default function App() {
         onConfirm={handleConfirmLogout}
         onCancel={() => setShowLogoutModal(false)}
       />
-    </div>
+
+      {/* Webhooks & API Integration Modal */}
+      <WebhooksManagementModal
+        isOpen={showWebhooksModal}
+        onClose={() => setShowWebhooksModal(false)}
+        orgName={currentOrg.name}
+      />
+      </div>
+    </ToastProvider>
   );
 }

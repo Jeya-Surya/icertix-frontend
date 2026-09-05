@@ -638,31 +638,60 @@ export const CertificateGenerationView: React.FC<CertificateGenerationViewProps>
         </div>
       )}
 
-      {/* If Generating: Animated Progress Box */}
+      {/* If Generating: Animated Progress Box with Live Queue Metrics */}
       {isGenerating && (
         <div className="bg-[#0A2540] text-white p-4 sm:p-6 border border-slate-700 rounded-2xl shadow-xl space-y-4 animate-fadeIn">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div className="flex items-center gap-3">
-              <div className="w-8 h-8 bg-[#0284C7] text-white flex items-center justify-center rounded-lg animate-spin shrink-0">
-                <Award className="w-4 h-4" />
+              <div className="w-9 h-9 bg-gradient-to-tr from-[#0284C7] to-cyan-400 text-[#051427] flex items-center justify-center rounded-xl animate-spin shrink-0 shadow-xs font-bold">
+                <Award className="w-5 h-5" />
               </div>
               <div>
-                <h3 className="font-sora text-xs sm:text-sm font-bold uppercase tracking-wider text-white">
-                  Executing Asynchronous Generation Job...
-                </h3>
+                <div className="flex items-center gap-2">
+                  <h3 className="font-sora text-xs sm:text-sm font-bold uppercase tracking-wider text-white">
+                    Asynchronous Batch Engine
+                  </h3>
+                  <span className="px-2 py-0.5 bg-emerald-950/80 text-emerald-300 border border-emerald-700/60 font-mono text-[10px] font-bold rounded-full animate-pulse">
+                    PROCESSING
+                  </span>
+                </div>
                 <span className="text-xs text-sky-300 font-mono block mt-0.5">
                   {currentStepLabel}
                 </span>
               </div>
             </div>
-            <span className="font-mono text-base font-bold text-white">{generationProgress}%</span>
+            <div className="flex items-center gap-3 self-end sm:self-auto font-mono text-xs">
+              <span className="text-slate-400">Status: <strong className="text-emerald-400">Anchoring SHA-256</strong></span>
+              <span className="font-mono text-lg font-bold text-white bg-slate-800 px-3 py-1 rounded-lg border border-slate-700">
+                {generationProgress}%
+              </span>
+            </div>
           </div>
 
-          <div className="w-full bg-slate-800 h-2 rounded-full overflow-hidden">
+          <div className="w-full bg-slate-800 h-2.5 rounded-full overflow-hidden p-0.5 border border-slate-700/60">
             <div 
-              className="bg-gradient-to-r from-sky-400 to-emerald-400 h-full transition-all duration-500 ease-out"
+              className="bg-gradient-to-r from-[#0284C7] via-cyan-400 to-emerald-400 h-full rounded-full transition-all duration-300 ease-out shadow-[0_0_12px_rgba(46,166,255,0.6)]"
               style={{ width: `${generationProgress}%` }}
             />
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1 text-[11px] font-mono text-slate-300">
+            <div className="bg-slate-900/80 p-2 rounded-lg border border-slate-800">
+              <span className="text-slate-500 block text-[10px]">TOTAL TARGET</span>
+              <strong className="text-white text-xs">{dataInputMode === 'spreadsheet' ? parsedSpreadsheetRows.length : selectedCandidateIds.length} records</strong>
+            </div>
+            <div className="bg-slate-900/80 p-2 rounded-lg border border-slate-800">
+              <span className="text-slate-500 block text-[10px]">CRYPTO DIGEST</span>
+              <strong className="text-sky-300 text-xs">Ed25519-SHA256</strong>
+            </div>
+            <div className="bg-slate-900/80 p-2 rounded-lg border border-slate-800">
+              <span className="text-slate-500 block text-[10px]">EDGE CACHE</span>
+              <strong className="text-emerald-300 text-xs">Auto-Warmed</strong>
+            </div>
+            <div className="bg-slate-900/80 p-2 rounded-lg border border-slate-800">
+              <span className="text-slate-500 block text-[10px]">STANDARDS</span>
+              <strong className="text-amber-300 text-xs">W3C VC + OB 3.0</strong>
+            </div>
           </div>
         </div>
       )}

@@ -7,7 +7,8 @@ import {
   Copy, 
   Check, 
   ZoomIn,
-  ZoomOut
+  ZoomOut,
+  Linkedin
 } from 'lucide-react';
 import { Credential, Organisation, CertificateTemplate } from '../../types';
 import { StudioDesignSchema, DemoCandidateData } from '../../types/templateStudio';
@@ -17,6 +18,9 @@ import {
   legacyTemplateToDesignSchema, 
   createBlankDesignSchema 
 } from '../../utils/templatePresets';
+import { generateLinkedInUrl } from '../../utils/linkedinUrl';
+import { useToast } from '../common';
+import { api } from '../../services/apiClient';
 
 interface CertificateModalProps {
   credential: Credential | null;
@@ -33,6 +37,7 @@ export const CertificateModal: React.FC<CertificateModalProps> = ({
   onClose,
   onOpenVerifier
 }) => {
+  const toast = useToast();
   const [copiedLink, setCopiedLink] = useState(false);
   const [zoomScale, setZoomScale] = useState(0.85);
 
@@ -197,7 +202,23 @@ export const CertificateModal: React.FC<CertificateModalProps> = ({
     const url = `${window.location.origin}/verify/${credential.credentialId}`;
     navigator.clipboard.writeText(url);
     setCopiedLink(true);
+    toast.success(`Verification link copied: ${credential.credentialId}`);
     setTimeout(() => setCopiedLink(false), 2000);
+  };
+
+  const handleShareLinkedIn = () => {
+    const orgName = credential.issuer?.name || organisation?.name || 'Academic Institution';
+    const verifyUrl = `${window.location.origin}/verify/${credential.credentialId}`;
+    const linkedInUrl = generateLinkedInUrl({
+      name: credential.title,
+      issuerName: orgName,
+      issueDate: credential.issueDate,
+      expiryDate: credential.expiryDate,
+      credentialId: credential.credentialId,
+      verificationUrl: verifyUrl
+    });
+    window.open(linkedInUrl, '_blank');
+    toast.info('Opening LinkedIn "Add to Profile" certification form...');
   };
 
   const handlePrint = () => {
@@ -212,6 +233,7 @@ export const CertificateModal: React.FC<CertificateModalProps> = ({
     document.body.appendChild(downloadAnchor);
     downloadAnchor.click();
     downloadAnchor.remove();
+    toast.success('Downloaded cryptographic JSON-LD proof');
   };
 
   return (
@@ -252,6 +274,78 @@ export const CertificateModal: React.FC<CertificateModalProps> = ({
               </button>
             </div>
 
+            <div className="relative group">
+              <button
+                className="px-2 sm:px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-xs font-semibold rounded-lg flex items-center gap-1 border border-slate-700 transition-colors cursor-pointer text-slate-200"
+                title="Download Proofs & Standards"
+              >
+                <Download className="w-3.5 h-3.5 text-sky-400" />
+                <span className="hidden sm:inline">Export Proof</span>
+              </button>
+              <div className="absolute right-0 mt-1 w-52 bg-slate-900 border border-slate-700 rounded-xl shadow-xl py-1 hidden group-hover:block z-50 animate-fadeIn">
+                <button
+                  onClick={handleDownloadJson}
+                  className="w-full text-left px-3 py-2 text-xs text-slate-200 hover:bg-slate-800 flex items-center justify-between"
+                >
+                  <span>Raw Cryptographic JSON</span>
+                  <span className="text-[10px] font-mono text-slate-400">.json</span>
+                </button>
+                <button
+                  onClick={async () => {
+                    try {
+                      const vc = await api.getW3cVerifiableCredential(credential.credentialId);
+                      const blob = new Blob([JSON.stringify(vc, null, 2)], { type: 'application/ld+json' });
+                      const url = URL.createObjectURL(blob);
+                      const a = document.createElement('a');
+                      a.href = url;
+                      a.download = `${credential.credentialId}-w3c-vc.jsonld`;
+                      a.click();
+                      URL.revokeObjectURL(url);
+                      toast.success('Downloaded W3C Verifiable Credential (.jsonld)');
+                    } catch {
+                      toast.error('Could not download W3C VC. Using local proof fallback.');
+                      handleDownloadJson();
+                    }
+                  }}
+                  className="w-full text-left px-3 py-2 text-xs text-slate-200 hover:bg-slate-800 flex items-center justify-between"
+                >
+                  <span>W3C VC (JSON-LD)</span>
+                  <span className="text-[10px] font-mono text-emerald-400">.jsonld</span>
+                </button>
+                <button
+                  onClick={async () => {
+                    try {
+                      const badge = await api.getOpenBadge(credential.credentialId);
+                      const blob = new Blob([JSON.stringify(badge, null, 2)], { type: 'application/json' });
+                      const url = URL.createObjectURL(blob);
+                      const a = document.createElement('a');
+                      a.href = url;
+                      a.download = `${credential.credentialId}-open-badge.json`;
+                      a.click();
+                      URL.revokeObjectURL(url);
+                      toast.success('Downloaded Open Badges 3.0 assertion (.json)');
+                    } catch {
+                      toast.error('Could not download Open Badge.');
+                    }
+                  }}
+                  className="w-full text-left px-3 py-2 text-xs text-slate-200 hover:bg-slate-800 flex items-center justify-between"
+                >
+                  <span>Open Badges 3.0</span>
+                  <span className="text-[10px] font-mono text-amber-400">.json</span>
+                </button>
+                <a
+                  href={api.getSocialBadgeSvgUrl(credential.credentialId)}
+                  target="_blank"
+                  rel="noreferrer"
+                  download={`${credential.credentialId}-badge.svg`}
+                  className="w-full text-left px-3 py-2 text-xs text-slate-200 hover:bg-slate-800 flex items-center justify-between"
+                >
+                  <span>Vector Badge Image</span>
+                  <span className="text-[10px] font-mono text-cyan-400">.svg</span>
+                </a>
+              </div>
+            </div>
+
             <button
               onClick={handlePrint}
               className="px-2 sm:px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-xs font-semibold rounded-lg flex items-center gap-1 border border-slate-700 transition-colors cursor-pointer"
@@ -262,12 +356,12 @@ export const CertificateModal: React.FC<CertificateModalProps> = ({
             </button>
 
             <button
-              onClick={handleDownloadJson}
-              className="px-2 sm:px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-xs font-semibold rounded-lg flex items-center gap-1 border border-slate-700 transition-colors cursor-pointer"
-              title="Download JSON-LD Proof"
+              onClick={handleShareLinkedIn}
+              className="px-2 sm:px-2.5 py-1.5 bg-[#0077b5] hover:brightness-110 text-xs font-semibold text-white rounded-lg flex items-center gap-1 shadow-2xs transition-all cursor-pointer"
+              title="Add Credential to LinkedIn Profile"
             >
-              <Download className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">JSON Proof</span>
+              <Linkedin className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Add to LinkedIn</span>
             </button>
 
             <button

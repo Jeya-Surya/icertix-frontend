@@ -83,13 +83,13 @@ export const MyTemplatesView: React.FC<MyTemplatesViewProps> = ({
 
   // Helper to resolve schema
   const resolveSchema = (t: CertificateTemplate): StudioDesignSchema => {
-    // 1. Check custom saved schemas in localStorage for current institution
+    // 1. Check custom saved schemas in localStorage strictly for current institution
     try {
       const orgKey = `icertix_studio_schemas_${currentOrg.id}`;
       const stored = localStorage.getItem(orgKey);
       if (stored) {
         const parsed: StudioDesignSchema[] = JSON.parse(stored);
-        const match = parsed.find(s => s.id === t.id || s.templateId === t.id);
+        const match = parsed.find(s => (s.id === t.id || s.templateId === t.id) && s.organisationId === currentOrg.id);
         if (match && match.elements && match.elements.length > 0) {
           return match;
         }
@@ -98,10 +98,6 @@ export const MyTemplatesView: React.FC<MyTemplatesViewProps> = ({
 
     if (t.schema && t.schema.elements && t.schema.elements.length > 0) {
       return t.schema as StudioDesignSchema;
-    }
-    const prebuilt = PREBUILT_TEMPLATES_CATALOG.find(p => p.id === t.id || p.name === t.name);
-    if (prebuilt) {
-      return prebuilt.schema;
     }
     return legacyTemplateToDesignSchema(t, currentOrg);
   };
@@ -138,17 +134,18 @@ export const MyTemplatesView: React.FC<MyTemplatesViewProps> = ({
     return vars;
   };
 
-  // Accurate filter and search logic
+  // Accurate filter and search logic (Strictly scoped to currentOrg templates)
   const filteredTemplates = useMemo(() => {
+    const orgTemplates = templates.filter(t => t.organisationId === currentOrg.id);
     const q = searchQuery.toLowerCase().trim();
-    return templates.filter(t => {
+    return orgTemplates.filter(t => {
       const schema = resolveSchema(t);
       const tOrientation = (t.orientation || schema?.page?.orientation || 'landscape').toLowerCase();
       const vars = extractVariables(t);
       const varKeys = vars.map(v => v.key.toLowerCase()).join(' ');
       const varLabels = vars.map(v => v.label.toLowerCase()).join(' ');
       
-      const candidateHolders = credentials.filter(c => c.templateId === t.id || c.title === t.name).length;
+      const candidateHolders = credentials.filter(c => (c.templateId === t.id || c.title === t.name) && c.organisationId === currentOrg.id).length;
 
       const matchesSearch = !q || (
         t.name.toLowerCase().includes(q) ||
@@ -166,12 +163,12 @@ export const MyTemplatesView: React.FC<MyTemplatesViewProps> = ({
       } else if (selectedFilter === 'With Candidates') {
         matchesFilter = candidateHolders > 0;
       } else if (selectedFilter === 'Official') {
-        matchesFilter = !!t.isDefault || t.id.startsWith('tpl-') || t.id.startsWith('preset-');
+        matchesFilter = !!t.isDefault;
       }
 
       return matchesSearch && matchesFilter;
     });
-  }, [templates, searchQuery, selectedFilter, credentials]);
+  }, [templates, currentOrg.id, searchQuery, selectedFilter, credentials]);
 
   // Overall aggregate stats
   const totalIssuedCount = credentials.length;

@@ -8,7 +8,8 @@ import {
   Mail,
   ShieldCheck,
   CreditCard,
-  LogOut
+  LogOut,
+  Webhook
 } from 'lucide-react';
 import { Organisation, AuthUser, NavTab } from '../../types';
 import { IcertixLogo } from '../common/IcertixLogo';
@@ -24,6 +25,7 @@ interface SidebarProps {
   onOpenLogin?: () => void;
   onLogout?: () => void;
   onCloseMobileMenu?: () => void;
+  onOpenWebhooks?: () => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -36,13 +38,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
   currentUser,
   onOpenLogin,
   onLogout,
-  onCloseMobileMenu
+  onCloseMobileMenu,
+  onOpenWebhooks
 }) => {
   const navItems: Array<{
     id: NavTab;
     label: string;
     icon: React.ComponentType<{ className?: string }>;
-    badge?: string | number;
     description: string;
   }> = [
     {
@@ -55,7 +57,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
       id: 'templates',
       label: 'My Templates',
       icon: Layout,
-      badge: templateCount,
       description: 'Saved designs, variables & candidate stats'
     },
     {
@@ -68,7 +69,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
       id: 'candidates',
       label: 'Candidates & Import',
       icon: Users,
-      badge: candidateCount,
       description: 'Directory & Bulk CSV upload'
     },
     {
@@ -81,7 +81,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
       id: 'registry',
       label: 'Credentials Registry',
       icon: FileCheck2,
-      badge: credentialCount,
       description: 'All issued certificates & lifecycle'
     },
     {
@@ -100,7 +99,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
       id: 'subscription',
       label: 'Plan & Billing',
       icon: CreditCard,
-      badge: currentOrg.plan,
       description: 'Quota limits & feature tiers'
     }
   ];
@@ -108,7 +106,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   return (
     <aside className="w-64 bg-gradient-to-b from-[#071328] via-[#0a1f44] to-[#050e20] text-white h-full flex flex-col justify-between border-r border-[#0e2a5c] select-none shadow-xl">
       <div>
-        {/* Organisation & Quota Overview (No Duplicate Logo) */}
+        {/* Organisation Overview (No Duplicate Logo) */}
         <div className="p-4 border-b border-[#0e2a5c] bg-[#0a1f44]/80 backdrop-blur-xs relative">
           <div className="flex items-center justify-between gap-2">
             <div className="flex items-center gap-2.5 min-w-0">
@@ -140,22 +138,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
               </button>
             )}
           </div>
-
-          {/* Quota Progress */}
-          <div className="mt-3.5 pt-3 border-t border-[#0e2a5c]/80">
-            <div className="flex items-center justify-between text-[10px] font-mono text-slate-300 mb-1.5">
-              <span>Quota Used:</span>
-              <span className="font-bold text-white">
-                {currentOrg.certificateQuota.used} / {currentOrg.certificateQuota.total}
-              </span>
-            </div>
-            <div className="w-full bg-[#050e20] h-2 rounded-full overflow-hidden p-0.5 border border-slate-700/50">
-              <div 
-                className="btn-primary-gradient h-full rounded-full transition-all duration-500"
-                style={{ width: `${Math.min(100, Math.max(4, (currentOrg.certificateQuota.used / currentOrg.certificateQuota.total) * 100))}%` }}
-              />
-            </div>
-          </div>
         </div>
 
         {/* Navigation Items */}
@@ -182,18 +164,26 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     {item.label}
                   </span>
                 </div>
-
-                {item.badge !== undefined && (
-                  <span className={`text-[10px] px-2 py-0.5 font-mono font-bold rounded-full ${
-                    isActive ? 'bg-[#051427]/20 text-[#051427]' : 'bg-[#071328] text-[#7bd94f] border border-slate-700'
-                  }`}>
-                    {item.badge}
-                  </span>
-                )}
               </button>
             );
           })}
         </nav>
+
+        {/* Institutional Webhooks / LMS Integration Trigger */}
+        {onOpenWebhooks && (
+          <div className="px-3 pt-3 border-t border-[#0e2a5c]/60">
+            <button
+              onClick={onOpenWebhooks}
+              className="w-full px-3 py-2 bg-[#0e2a5c]/60 hover:bg-[#0e2a5c] text-sky-300 hover:text-white rounded-xl text-xs font-semibold flex items-center justify-between transition-all border border-sky-800/40 cursor-pointer"
+            >
+              <div className="flex items-center gap-2">
+                <Webhook className="w-3.5 h-3.5 text-sky-400" />
+                <span>Webhooks & LMS Sync</span>
+              </div>
+              <span className="text-[9px] font-mono px-1.5 py-0.5 bg-sky-950 text-sky-300 rounded font-bold">HMAC</span>
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Footer System Info & User Switcher */}
